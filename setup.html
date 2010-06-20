@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>'Send To Instapaper' Setup</title>
+        <script src="sendtoinstapaper.js" type="text/javascript"></script>
+        <style type="text/css">
+            body {
+                margin:     0;
+                padding:    10px;
+                width:      250px;
+            }
+            h1 {
+                font:           18px/1.2 Baskerville;
+                font-weight:    700;
+                margin:         0 0 10px;
+                padding:        0;
+            }
+            label {
+                display:    block;
+                margin:     10px 0;
+            }
+                label input {
+                    display:    block;
+                }
+        </style>
+        <script type="text/javascript">
+            window.addEventListener( 'load', SendToInstapaper.setupInit );
+        </script>
+    </head>
+    <body>
+        <h1>'Send to Instapaper' Options</h1>
+        <form action="#" id="optionForm">
+            <label>
+                Email address or username:
+                <input type="text" id="username" value="">
+            </label>
+            <label>
+                Password:
+                <input type="password" id="password" value="">
+            </label>
+            <input type="submit" value="Save">
+        </form>
+    </body>
+</html>

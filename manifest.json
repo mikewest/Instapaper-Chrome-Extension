@@ -1,0 +1,23 @@
+{
+    "name":     "Send to Instapaper",
+    "version":  "0.1",
+    
+    "description":      "A simple, streamlined Instapapering tool.",
+    "icons":        {
+        "16":   "icon-16x16.png",
+        "19":   "icon-19x19.png",
+        "48":   "icon-48x48.png",
+        "128":  "icon-128x128.png"
+    },
+
+    "page_action":  {
+        "default_icon":     "icon-19x19.png", 
+        "default_title":    "Send to Instapaper"
+    },
+    "background_page":  "background.html",
+    "permissions":  [
+        "tabs",
+        "notifications",
+        "https://www.instapaper.com/"
+    ]
+}
