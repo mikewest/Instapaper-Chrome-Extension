@@ -98,14 +98,15 @@ var SendToInstapaper = ( function() {
         option( 'currentTab', null );
         // When Chrome displays any tab, show the pageAction
         // icon in that tab's addressbar.
-        chrome.tabs.onSelectionChanged.addListener(
-            function(tabId) {
-                option( 'currentTab', tabId );
+        var handleTabEvents = function(tabId) {
+            option( 'currentTab', tabId );
 
-                chrome.pageAction.show( tabId );
-                setPopup();
-            }
-        );
+            chrome.pageAction.show( tabId );
+            setPopup();
+        };
+        chrome.tabs.onSelectionChanged.addListener( handleTabEvents );
+        chrome.tabs.onUpdated.addListener( handleTabEvents );
+
         // Display the pageAction icon for the current tab
         // (as it's already visible, `onSelectionChange`
         // won't have been called.
