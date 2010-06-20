@@ -2,6 +2,9 @@
  *  SendToInstapaper
  */
 var SendToInstapaper = ( function() {
+    /**
+     *  "Global" Constants for Instapaper URLs and HTTP status codes
+     */
     var URL_AUTH    =   "https://www.instapaper.com/api/authenticate",
         URL_ADD     =   "https://www.instapaper.com/api/add",
 
@@ -11,24 +14,37 @@ var SendToInstapaper = ( function() {
         STATUS_FORBIDDEN    =   403,
         STATUS_ERROR        =   500;
 
-    function syncRequest( options ) {
-        options.method = options.method || "GET";
-        options.async  = false;
+    /**
+     *  Wrapper for the XHR functionality used by `asyncRequest` and
+     *  `syncRequest`.
+     *
+     *  @param  {Object}    options Configuration object, containing the request
+     *                              `method`, `url`, `username`, `password`, and
+     *                              other `data`.
+     *  @return {Object}    The completed XHR object.
+     */
+    function request( options ) {
         var xhr         = new XMLHttpRequest(),
             postData    = "";
+
         xhr.open(
             options.method, options.url, options.async
         );
+
         if ( options.username || options.password ) {
             xhr.setRequestHeader( "Authorization", "Basic " + btoa( options.username + ":" + options.password ) );
         }
         if ( options.method === "POST" ) {
             xhr.setRequestHeader( 'Content-Type', 'application/x-www-form-urlencoded' );
         }
-        console.log( "XHR: %o", options, xhr );
+        if ( options.async && options.callback ) {
+            xhr.onload  = options.callback;
+            xhr.onerror = options.callback;
+        }
+
         try {
             if ( options.data ) {
-                for ( key in options.data ) {
+                for ( var key in options.data ) {
                     if ( options.data.hasOwnProperty( key ) ) {
                         postData += encodeURIComponent( key ) + "=" + encodeURIComponent( options.data[ key ] ) + "&";
                     }
@@ -44,9 +60,44 @@ var SendToInstapaper = ( function() {
             };
         }
     } 
+    /**
+     *  Make a request via XMLHttpRequest, synchronously.
+     *
+     *  @param  {Object}    options Configuration object, containing the request
+     *                              `method`, `url`, `username`, `password`, and
+     *                              other `data`.
+     *  @return {Object}    The completed XHR object.
+     */
+    function syncRequest( options ) {
+        options.method = options.method || "GET";
+        options.async  = false;
+        return request( options );
+    }
 
+    /**
+     *  Make a request via XMLHttpRequest, asynchronously.
+     *
+     *  @param  {Object}    options Configuration object, containing the request
+     *                              `method`, `url`, `username`, `password`, and
+     *                              other `data`.
+     *  @return {Object}    The completed XHR object.
+     */
+    function asyncRequest( options ) {
+        options.method = options.method || "GET";
+        options.async  = true;
+        return request( options );
+    }
+
+
+    /**
+     *  Checks the user's authentication status, caching the result in 
+     *  `localStorage.authenticated` for future use.
+     *
+     *  @param  {Boolean}   force   If set, ignore the cached authentication
+     *                              status and force a reauth via HTTP.
+     *  @return {Boolean}   `true` if authenticated, `false` otherwise.
+     */
     function isAuthenticated( force ) {
-        console.log( "Checking auth: %o", option( 'authenticated' ) );
         if ( option( 'authenticated' ) !== STATUS_ERROR && !force ) {
             return option( 'authenticated' );
         }
@@ -77,51 +128,63 @@ var SendToInstapaper = ( function() {
         return localStorage.authenticated;
     }
 
-    function sendURL( tab ) {
+    /**
+     *  Sends the current tab's URL and title to Instapaper for safe-keeping,
+     *  and kicks off the animation for the pageAction's icon.
+     *
+     *  @param  {Object}    tab         The currently visible tab.
+     *  @param  {Function}  callback    A function to be called to handle 
+     *                                  load and error events on the XHR
+     *                                  object used for the request.  It ought
+     *                                  accept a single argument: the XHR
+     *                                  object itself.
+     *
+     *  @private
+     */                                
+    function sendURL( tab, callback ) {
         animatedIcon.start( tab.id );
-
         if ( isAuthenticated() ) {
-            return syncRequest( {
+            asyncRequest( {
                 'method':   "POST",
                 'url':      URL_ADD,
                 'username': option( "username" ),
                 'password': option( "password" ),
+                'callback': function ( e ) { callback( e.target, tab ); },
                 'data':     {
                     'url':      tab.url,
                     'title':    tab.title
                 }  
             } );
         } else {
-            return {
+            callback( {
                 "status":   STATUS_ERROR
-            };
+            } );
         }
     }
 
+/**************************************************************************
+ * Page Initalization
+ */
+    /**
+     *  Initialize the background page to handle tab events
+     *  and listen for clicks on the pageAction itself.
+     *
+     *  @public
+     */
     function backgroundInit() {
         option( 'currentTab', null );
         // When Chrome displays any tab, show the pageAction
         // icon in that tab's addressbar.
-        var handleTabEvents = function(tabId) {
-            option( 'currentTab', tabId );
-
-            chrome.pageAction.show( tabId );
-            setPopup();
+        var handleTabEvents = function( tab ) {
+            option( 'currentTab', tab.id || tab );
+            chrome.pageAction.show( tab.id || tab );
+            setPopupState();
         };
         chrome.tabs.onSelectionChanged.addListener( handleTabEvents );
         chrome.tabs.onUpdated.addListener( handleTabEvents );
+        chrome.tabs.getSelected( null, handleTabEvents );
 
-        // Display the pageAction icon for the current tab
-        // (as it's already visible, `onSelectionChange`
-        // won't have been called.
-        chrome.tabs.getSelected( null, function( tab ) {
-            option( 'currentTab', tab.id );
-            chrome.pageAction.show( tab.id );
-            setPopup();
-        } );
-
-        chrome.pageAction.onClicked.addListener( function ( tab ) {
-            var response = sendURL( tab );
+        var handleClickEvents = function( response, tab ) {
             animatedIcon.stop();
             switch ( response.status ) {
                 case STATUS_CREATED:
@@ -140,26 +203,28 @@ var SendToInstapaper = ( function() {
                     } );
                     break;
             }
+        };
+        chrome.pageAction.onClicked.addListener( function ( tab ) {
+            var response = sendURL( tab, handleClickEvents );
         } );
 
+        // Listen for messages from the injected content script
+        chrome.extension.onRequest.addListener(
+            function( request, sender, sendResponse ) {
+                if ( request.action === "sendToInstapaper" ) {
+                   sendURL( sender.tab, handleClickEvents );
+                }
+                sendResponse( {} );
+            }
+        );
     }
 
-    function setPopup( ) {
-        if ( isAuthenticated() !== true ) {
-            console.log( "Setting popup." );
-            chrome.pageAction.setPopup( {
-                'tabId':    option( 'currentTab' ),
-                'popup':    'setup.html'
-            } );
-        } else {
-            console.log( "Unsetting popup." );
-            chrome.pageAction.setPopup( {
-                'tabId':    option( 'currentTab' ),
-                'popup':    ''
-            } );
-        }
-    }
-
+    /**
+     *  Initialize the setup/option page's form to properly store a
+     *  username and password for future use.
+     *  
+     *  @public
+     */
     function setupInit() {
         var theForm = document.getElementById( 'optionForm' ),
             user    = document.getElementById( 'username' ),
@@ -181,13 +246,45 @@ var SendToInstapaper = ( function() {
                 theForm.appendChild( document.createTextNode( "Error communicating with Instapaper.  Are you online?" ) );
             }
 
-            setPopup();
+            setPopupState();
 
             e.preventDefault(); e.stopPropagation();
             return false;
         } );
     }
 
+
+/**************************************************************************
+ * Helper Functions
+ */
+    /**
+     *  If the user is authenticated, the `pageAction` shouldn't render a
+     *  popup.  If not, it should.  Calling this function ensures that
+     *  state of affairs.
+     *
+     *  @private
+     */
+    function setPopupState( ) {
+        chrome.pageAction.setPopup( {
+            'tabId':    option( 'currentTab' ),
+            'popup':    ( isAuthenticated() === true ) ? '' : 'setup.html'
+        } );
+    }
+
+    /**
+     *  Wrapper for `localStorage`, handling the little details of JSON
+     *  encoding and decoding on store and read.
+     *
+     *  @param  {String}    key     The key with which the method should work
+     *  @param  {Mixed}     value   If present, the value to store for `key`.
+     *                              If not, the function returns the current
+     *                              value stored.
+     *
+     *  @return {Mixed}     If `value` is provided, returns nothing, else,
+     *                      returns the current value for `key`
+     *
+     *  @private
+     */
     function option( key, value ) {
         if ( typeof( value ) !== "undefined" ) {
             localStorage[ key ] = JSON.stringify( { "value": value } );
@@ -206,7 +303,7 @@ var SendToInstapaper = ( function() {
     var animatedIcon = ( function() {
         var iconAnimationInterval   = null,
             canvas                  = null,
-            context                 = null
+            context                 = null,
             iconAnimationState      = 0;
 
         function startIconAnimation( tabId ) {
@@ -218,12 +315,11 @@ var SendToInstapaper = ( function() {
                 return;
             }
             iconAnimationInterval = window.setInterval( function () {
-                console.log( "Animating %d", iconAnimationState );
                 chrome.pageAction.setIcon( {
                     "tabId":        tabId,
                     "imageData":    drawIcon( iconAnimationState )
                 } );
-                iconAnimationState++;
+                iconAnimationState += 1;
             }, 25 );
         }
             function drawIcon( state ) {
@@ -238,7 +334,7 @@ var SendToInstapaper = ( function() {
                     startAngle, endAngle;
 
                 if ( Math.floor( state / NUM_IN_CYCLE ) % 2 ) {
-                    startAngle  = 0,
+                    startAngle  = 0;
                     endAngle    = ( INTERVAL * state ) % MAXANGLE;
                 } else {
                     startAngle  = ( INTERVAL * state ) % MAXANGLE;
@@ -259,6 +355,9 @@ var SendToInstapaper = ( function() {
         return {
             "start":    startIconAnimation,
             "stop":     stopIconAnimation
+            // ,
+            // "start":    function() {},
+            // "stop":     function() {}
         };
     }() );
 

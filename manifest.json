@@ -1,6 +1,6 @@
 {
     "name":     "Send to Instapaper",
-    "version":  "0.1",
+    "version":  "0.9",
     
     "description":      "A simple, streamlined Instapapering tool.",
     "icons":        {
@@ -15,6 +15,18 @@
         "default_title":    "Send to Instapaper"
     },
     "background_page":  "background.html",
+    "content_scripts":  [
+        {
+            "matches":  [
+                "http://*/*",
+                "https://*/*"
+            ],
+            "js":   [
+                "injected.js"
+            ],
+            "run_at":   "document_end"
+        }
+    ],
     "permissions":  [
         "tabs",
         "notifications",
