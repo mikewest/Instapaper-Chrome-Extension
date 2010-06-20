@@ -78,8 +78,10 @@ var SendToInstapaper = ( function() {
     }
 
     function sendURL( tab ) {
+        animatedIcon.start( tab.id );
+
         if ( isAuthenticated() ) {
-            syncRequest( {
+            return syncRequest( {
                 'method':   "POST",
                 'url':      URL_ADD,
                 'username': option( "username" ),
@@ -90,7 +92,9 @@ var SendToInstapaper = ( function() {
                 }  
             } );
         } else {
-            // Handle unauthenticated user here.
+            return {
+                "status":   STATUS_ERROR
+            };
         }
     }
 
@@ -117,12 +121,25 @@ var SendToInstapaper = ( function() {
         } );
 
         chrome.pageAction.onClicked.addListener( function ( tab ) {
-            sendURL( tab );
-            webkitNotifications.createNotification(
-                'icon.png',
-                'Instaper',
-                'Successfully saved "' + tab.title + '" to Instapaper.'
-            ).show();
+            var response = sendURL( tab );
+            animatedIcon.stop();
+            switch ( response.status ) {
+                case STATUS_CREATED:
+                    chrome.pageAction.setIcon( {
+                        "tabId":    tab.id,
+                        "path":     "success.png"
+                    } );
+                    break;
+                case STATUS_BADREQUEST:
+                case STATUS_ERROR:
+                case STATUS_FORBIDDEN:
+                default:
+                    chrome.pageAction.setIcon( {
+                        "tabId":    tab.id,
+                        "path":     "failure.png"
+                    } );
+                    break;
+            }
         } );
 
     }
@@ -182,6 +199,68 @@ var SendToInstapaper = ( function() {
             }
         }
     }
+
+/**************************************************************************
+ * Icon Animation
+ */
+    var animatedIcon = ( function() {
+        var iconAnimationInterval   = null,
+            canvas                  = null,
+            context                 = null
+            iconAnimationState      = 0;
+
+        function startIconAnimation( tabId ) {
+            if ( ! canvas ) {
+                canvas   =   document.getElementById( 'canvas' );
+                context  =   canvas.getContext('2d');
+            }
+            if ( ! tabId ) {
+                return;
+            }
+            iconAnimationInterval = window.setInterval( function () {
+                console.log( "Animating %d", iconAnimationState );
+                chrome.pageAction.setIcon( {
+                    "tabId":        tabId,
+                    "imageData":    drawIcon( iconAnimationState )
+                } );
+                iconAnimationState++;
+            }, 25 );
+        }
+            function drawIcon( state ) {
+                var MAXANGLE        =   Math.PI * 4 / 2,
+                    NUM_IN_CYCLE    =   75,
+                    INTERVAL        =   MAXANGLE / NUM_IN_CYCLE;
+
+                context.clearRect(0, 0, 19, 19);
+                var x           = 9,
+                    y           = 9,
+                    radius      = 5,
+                    startAngle, endAngle;
+
+                if ( Math.floor( state / NUM_IN_CYCLE ) % 2 ) {
+                    startAngle  = 0,
+                    endAngle    = ( INTERVAL * state ) % MAXANGLE;
+                } else {
+                    startAngle  = ( INTERVAL * state ) % MAXANGLE;
+                    endAngle    = 0;
+                }
+
+                context.beginPath();
+                context.arc( x, y, radius, startAngle, endAngle, false );
+                context.stroke();
+                
+                return context.getImageData(0, 0, 19, 19);
+            }
+        function stopIconAnimation() {
+            clearInterval( iconAnimationInterval );
+            iconAnimationInterval = null;
+        }
+
+        return {
+            "start":    startIconAnimation,
+            "stop":     stopIconAnimation
+        };
+    }() );
 
     return {
         'backgroundInit':   backgroundInit,
