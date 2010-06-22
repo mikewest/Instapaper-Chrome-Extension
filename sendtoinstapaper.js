@@ -18,35 +18,35 @@ var SendToInstapaper = ( function() {
      *  Wrapper for the XHR functionality used by `asyncRequest` and
      *  `syncRequest`.
      *
-     *  @param  {Object}    options Configuration object, containing the request
+     *  @param  {Object}    config Configuration object, containing the request
      *                              `method`, `url`, `username`, `password`, and
      *                              other `data`.
      *  @return {Object}    The completed XHR object.
      */
-    function request( options ) {
+    function request( config ) {
         var xhr         = new XMLHttpRequest(),
             postData    = "";
 
         xhr.open(
-            options.method, options.url, options.async
+            config.method, config.url, config.async
         );
 
-        if ( options.username || options.password ) {
-            xhr.setRequestHeader( "Authorization", "Basic " + btoa( options.username + ":" + options.password ) );
+        if ( config.username || config.password ) {
+            xhr.setRequestHeader( "Authorization", "Basic " + btoa( config.username + ":" + config.password ) );
         }
-        if ( options.method === "POST" ) {
+        if ( config.method === "POST" ) {
             xhr.setRequestHeader( 'Content-Type', 'application/x-www-form-urlencoded' );
         }
-        if ( options.async && options.callback ) {
-            xhr.onload  = options.callback;
-            xhr.onerror = options.callback;
+        if ( config.async && config.callback ) {
+            xhr.onload  = config.callback;
+            xhr.onerror = config.callback;
         }
 
         try {
-            if ( options.data ) {
-                for ( var key in options.data ) {
-                    if ( options.data.hasOwnProperty( key ) ) {
-                        postData += encodeURIComponent( key ) + "=" + encodeURIComponent( options.data[ key ] ) + "&";
+            if ( config.data ) {
+                for ( var key in config.data ) {
+                    if ( config.data.hasOwnProperty( key ) ) {
+                        postData += encodeURIComponent( key ) + "=" + encodeURIComponent( config.data[ key ] ) + "&";
                     }
                 }
                 postData += "1=1";
@@ -60,72 +60,73 @@ var SendToInstapaper = ( function() {
             };
         }
     } 
-    /**
-     *  Make a request via XMLHttpRequest, synchronously.
-     *
-     *  @param  {Object}    options Configuration object, containing the request
-     *                              `method`, `url`, `username`, `password`, and
-     *                              other `data`.
-     *  @return {Object}    The completed XHR object.
-     */
-    function syncRequest( options ) {
-        options.method = options.method || "GET";
-        options.async  = false;
-        return request( options );
-    }
 
     /**
      *  Make a request via XMLHttpRequest, asynchronously.
      *
-     *  @param  {Object}    options Configuration object, containing the request
+     *  @param  {Object}    config Configuration object, containing the request
      *                              `method`, `url`, `username`, `password`, and
      *                              other `data`.
      *  @return {Object}    The completed XHR object.
      */
-    function asyncRequest( options ) {
-        options.method = options.method || "GET";
-        options.async  = true;
-        return request( options );
+    function asyncRequest( config ) {
+        config.method = config.method || "GET";
+        config.async  = true;
+        return request( config );
     }
 
 
     /**
      *  Checks the user's authentication status, caching the result in 
-     *  `localStorage.authenticated` for future use.
+     *  `localStorage.authenticated` for future use.  Three callbacks are
+     *  available to cover the possible responses:
      *
-     *  @param  {Boolean}   force   If set, ignore the cached authentication
-     *                              status and force a reauth via HTTP.
+     *  @param  {Object}    config  The call's configuration.
+     *
      *  @return {Boolean}   `true` if authenticated, `false` otherwise.
      */
-    function isAuthenticated( force ) {
-        if ( option( 'authenticated' ) !== STATUS_ERROR && !force ) {
-            return option( 'authenticated' );
+    function isAuthenticated( config ) {
+        config = {
+            'force':        config.force        || false,
+            'isAuthed':     config.isAuthed     || function () {},
+            'notAuthed':    config.notAuthed    || function () {},
+            'error':        config.error        || function () {}
+        };
+
+        if ( !config.force && storage( 'authenticated' ) !== STATUS_ERROR ) {
+            if ( storage( 'authenticated' ) ) {
+                return config.isAuthed();
+            } else {
+                return config.notAuthed();
+            } 
         }
 
-        option( 'authenticated', null );
+        storage( 'authenticated', STATUS_ERROR );
         if (
-            option( "username" ) !== undefined &&
-            option( "password" ) !== undefined
+            storage( "username" ) !== undefined &&
+            storage( "password" ) !== undefined
         ) {
-            var req = syncRequest( {
+            var req = asyncRequest( {
                 'url':      URL_AUTH,
-                'username': option( "username" ),
-                'password': option( "password" )
+                'username': storage( "username" ),
+                'password': storage( "password" ) || "null",
+                'callback': function ( e ) {
+                    switch ( req.status ) {
+                        case STATUS_OK:
+                            storage( "authenticated", true );
+                            config.isAuthed();
+                            break;
+                        case STATUS_FORBIDDEN:
+                            storage( "authenticated", false );
+                            config.notAuthed();
+                            break;
+                        case STATUS_ERROR:
+                            config.error();
+                            break;
+                    }
+                }
             } );
-            switch ( req.status ) {
-                case STATUS_OK:
-                    option( "authenticated",    true );
-                    break;
-                case STATUS_FORBIDDEN:
-                    option( "authenticated",    false );
-                    break;
-                case STATUS_ERROR:
-                default:
-                    option( "authenticated",    STATUS_ERROR );
-                    break;
-            }
         }
-        return localStorage.authenticated;
     }
 
     /**
@@ -143,23 +144,29 @@ var SendToInstapaper = ( function() {
      */                                
     function sendURL( tab, callback ) {
         animatedIcon.start( tab.id );
-        if ( isAuthenticated() ) {
-            asyncRequest( {
-                'method':   "POST",
-                'url':      URL_ADD,
-                'username': option( "username" ),
-                'password': option( "password" ),
-                'callback': function ( e ) { callback( e.target, tab ); },
-                'data':     {
-                    'url':      tab.url,
-                    'title':    tab.title
-                }  
-            } );
-        } else {
-            callback( {
-                "status":   STATUS_ERROR
-            } );
-        }
+        var authedCallback = function () {
+                asyncRequest( {
+                    'method':   "POST",
+                    'url':      URL_ADD,
+                    'username': storage( "username" ),
+                    'password': storage( "password" ) || "null",
+                    'callback': function ( e ) { callback( e.target, tab ); },
+                    'data':     {
+                        'url':      tab.url,
+                        'title':    tab.title
+                    }  
+                } );
+            },
+            notAuthedCallback   = function () {
+                callback( {
+                    "status":   STATUS_ERROR
+                } );
+            };
+        isAuthenticated( {
+            'isAuthed':     authedCallback,
+            'notAuthed':    notAuthedCallback,
+            'error':        notAuthedCallback
+        } );
     }
 
 /**************************************************************************
@@ -172,13 +179,17 @@ var SendToInstapaper = ( function() {
      *  @public
      */
     function backgroundInit() {
-        option( 'currentTab', null );
+        storage( 'currentTab', null );
         // When Chrome displays any tab, show the pageAction
         // icon in that tab's addressbar.
         var handleTabEvents = function( tab ) {
-            option( 'currentTab', tab.id || tab );
+            storage( 'currentTab', tab.id || tab );
             chrome.pageAction.show( tab.id || tab );
-            setPopupState();
+            isAuthenticated( {
+                'isAuthed':     function () { clearPopup(); },
+                'notAuthed':    function () { setPopup(); },
+                'error':        function () { setPopup(); }
+            } );
         };
         chrome.tabs.onSelectionChanged.addListener( handleTabEvents );
         chrome.tabs.onUpdated.addListener( handleTabEvents );
@@ -231,43 +242,110 @@ var SendToInstapaper = ( function() {
             pass    = document.getElementById( 'password' ),
             auth;
 
-        user.value = option( 'username' );
-        pass.value = option( 'password' );
+        user.value = storage( 'username' ) || "";
+        pass.value = storage( 'password' ) || "";
 
         theForm.addEventListener( 'submit', function ( e ) {
-            option( 'username', user.value );
-            option( 'password', pass.value );
-            auth = isAuthenticated( true );
-            if ( auth === true ) {
-                theForm.appendChild( document.createTextNode( "Success!" ) );
-            } else if ( auth === false ) {
-                theForm.appendChild( document.createTextNode( "Invalid username/password." ) );
-            } else if ( auth === STATUS_ERROR ) {
-                theForm.appendChild( document.createTextNode( "Error communicating with Instapaper.  Are you online?" ) );
-            }
-
-            setPopupState();
-
+            storage( 'username', user.value );
+            storage( 'password', pass.value );
+            isAuthenticated( {
+                'force':        true,
+                'isAuthed':     function () {
+                    notify( {
+                        'el':       theForm,
+                        'msg':      "Success!",
+                        'type':     "success",
+                        'callback': function () { window.close(); }
+                    } );
+                    clearPopup();
+                },
+                'notAuthed':    function () {
+                    notify( {
+                        'el':       theForm,
+                        'msg':      "Username/password failure!",
+                        'type':     "failure"
+                    } );
+                    setPopup();
+                },
+                'error':        function () {
+                    notify( {
+                        'el':       theForm,
+                        'msg':      "Couldn't connect to Instapaper!",
+                        'type':     "failure"
+                    } );
+                    setPopup();
+                }
+            } );
             e.preventDefault(); e.stopPropagation();
             return false;
         } );
     }
 
+    /**
+     *  Generate a notification div, append it somewhere useful
+     *  with a helpful message, then remove it after a set timeout.
+     *
+     *  @param  {DOMElement}    The node to which to append the notification
+     *  @param  {String}        The message.
+     *  @param  {String}        The message type (success/failure)
+     *  @param  {Int}           The timeout (in ms) after which to remove the notification
+     *  @param  {Function}      Callback to trigger on removal
+     */
+    function notify( config ) {
+        console.log( "Notification: %o", config );
+        config = {
+            'el':       config.el       || null,
+            'msg':      config.msg      ||  "",
+            'type':     config.type     ||  "",
+            'timeout':  config.timeout  || 1000,
+            'callback': config.callback || function () {}
+        };
+        var notification = document.createElement( "div" );
+        notification.innerText = config.msg;
+        notification.className = "notification " + config.type;
+        config.el.appendChild( notification );
+        setTimeout(
+            function () {
+                notification.style.opacity = 0;
+                notification.addEventListener(
+                    'webkitTransitionEnd',
+                    function( event ) {
+                        config.el.removeChild( notification );
+                        config.callback();
+                    },
+                    false
+                );
+
+            },
+            1000
+        );
+    }
 
 /**************************************************************************
  * Helper Functions
  */
     /**
-     *  If the user is authenticated, the `pageAction` shouldn't render a
-     *  popup.  If not, it should.  Calling this function ensures that
-     *  state of affairs.
+     *  If the user is not authenticated, the `pageAction` should render a
+     *  popup.  Calling this function ensures that state of affairs.
      *
      *  @private
      */
-    function setPopupState( ) {
+    function setPopup() {
         chrome.pageAction.setPopup( {
-            'tabId':    option( 'currentTab' ),
-            'popup':    ( isAuthenticated() === true ) ? '' : 'setup.html'
+            'tabId':    storage( 'currentTab' ),
+            'popup':    'setup.html'
+        } );
+    }
+    /**
+     *  If the user is authenticated, the `pageAction` shouldn't render a
+     *  popup.  Calling this function ensures that state of affairs.
+     *
+     *  @private
+     */
+    function clearPopup() {
+        chrome.pageAction.setPopup( {
+            'tabId':    storage( 'currentTab' ),
+            'popup':    ''
         } );
     }
 
@@ -285,7 +363,7 @@ var SendToInstapaper = ( function() {
      *
      *  @private
      */
-    function option( key, value ) {
+    function storage( key, value ) {
         if ( typeof( value ) !== "undefined" ) {
             localStorage[ key ] = JSON.stringify( { "value": value } );
         } else {
@@ -355,15 +433,11 @@ var SendToInstapaper = ( function() {
         return {
             "start":    startIconAnimation,
             "stop":     stopIconAnimation
-            // ,
-            // "start":    function() {},
-            // "stop":     function() {}
         };
     }() );
 
     return {
         'backgroundInit':   backgroundInit,
-        'setupInit':        setupInit,
-        'option':           option
+        'setupInit':        setupInit
     };
 }() );
