@@ -37,6 +37,10 @@
     "passwordLabel":    {
         "message":      "Password",
         "description":  "The label of the password field in the setup form."
+    },
+    "saveLabel": {
+        "message":      "Save",
+        "description":  "The label of the setup form submission button."
     }
     
 }
