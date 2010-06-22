@@ -284,9 +284,7 @@ var SendToInstapaper = ( function() {
     }
 
     function internationalize( str ) {
-        console.log( "Internationalize: %s", str );
         return str.replace( /__MSG_([^_]+)__/g, function ( m, key ) {
-            console.log( "Replacing %s with %s", m, chrome.i18n.getMessage( key ) );
             return chrome.i18n.getMessage( key );
         } );
     }
