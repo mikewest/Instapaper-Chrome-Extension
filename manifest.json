@@ -1,8 +1,10 @@
 {
-    "name":     "Send to Instapaper",
+    "default_locale":   "en",
+
+    "name":     "__MSG_extensionTitle__",
     "version":  "1.0",
     
-    "description":      "A simple, streamlined Instapapering tool.",
+    "description":      "__MSG_extensionDescription__",
     "icons":        {
         "16":   "icon-16x16.png",
         "19":   "icon-19x19.png",
@@ -12,7 +14,7 @@
 
     "page_action":  {
         "default_icon":     "icon-19x19.png", 
-        "default_title":    "Send to Instapaper"
+        "default_title":    "__MSG_tooltip__"
     },
     "background_page":  "background.html",
     "content_scripts":  [

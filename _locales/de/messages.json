@@ -1,0 +1,42 @@
+{
+    "extensionTitle":   {
+        "message":      "Send to Instapaper",
+        "description":  "The title of the extension"
+    },
+    "extensionDescription": {
+        "message":      "Ein minimaler, gezielter Instapaper-Helfer.",
+        "description":  "The extension's short description."
+    },
+
+   "tooltip":   {
+        "message":      "Send to Instapaper",
+        "description":  "Displayed to the user when she moves her mouse over the extension's `pageAction` icon."
+    },
+
+    "successfulAuth":   {
+        "message":      "Erfolg!",
+        "description":  "Displayed to the user when she successfully authenticates to Instapaper."
+    },
+    "failedAuth":       {
+        "message":      "Ungültige Username/Passwort.",
+        "description":  "Displayed to the user when she enters a bad username/password combination." 
+    },
+    "errorAuth":    {
+        "message":      "Verbindungsfehler.",
+        "description":  "Displayed to the user when the authentication fails with an error state (e.g. couldn't connect to Instapaper)."
+    },
+
+    "formTitle":    {
+        "message":      "Instapaper Konfiguration",
+        "description":  "The title of the setup form."
+    },
+    "usernameLabel":    {
+        "message":      "E-Mail-Adresse bzw. Username",
+        "description":  "The label of the username field in the setup form."
+    },
+    "passwordLabel":    {
+        "message":      "Passwort",
+        "description":  "The label of the password field in the setup form."
+    }
+    
+}

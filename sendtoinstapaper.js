@@ -237,6 +237,8 @@ var SendToInstapaper = ( function() {
      *  @public
      */
     function setupInit() {
+        document.getElementsByTagName( 'body' )[0].innerHTML = internationalize( document.getElementsByTagName( 'body' )[0].innerHTML );
+
         var theForm = document.getElementById( 'optionForm' ),
             user    = document.getElementById( 'username' ),
             pass    = document.getElementById( 'password' ),
@@ -253,7 +255,7 @@ var SendToInstapaper = ( function() {
                 'isAuthed':     function () {
                     notify( {
                         'el':       theForm,
-                        'msg':      "Success!",
+                        'msg':      chrome.i18n.getMessage( 'successfulAuth' ),
                         'type':     "success",
                         'callback': function () { window.close(); }
                     } );
@@ -262,7 +264,7 @@ var SendToInstapaper = ( function() {
                 'notAuthed':    function () {
                     notify( {
                         'el':       theForm,
-                        'msg':      "Username/password failure!",
+                        'msg':      chrome.i18n.getMessage( 'failedAuth' ),
                         'type':     "failure"
                     } );
                     setPopup();
@@ -270,7 +272,7 @@ var SendToInstapaper = ( function() {
                 'error':        function () {
                     notify( {
                         'el':       theForm,
-                        'msg':      "Couldn't connect to Instapaper!",
+                        'msg':      chrome.i18n.getMessage( 'errorAuth' ),
                         'type':     "failure"
                     } );
                     setPopup();
@@ -278,6 +280,14 @@ var SendToInstapaper = ( function() {
             } );
             e.preventDefault(); e.stopPropagation();
             return false;
+        } );
+    }
+
+    function internationalize( str ) {
+        console.log( "Internationalize: %s", str );
+        return str.replace( /__MSG_([^_]+)__/g, function ( m, key ) {
+            console.log( "Replacing %s with %s", m, chrome.i18n.getMessage( key ) );
+            return chrome.i18n.getMessage( key );
         } );
     }
 
@@ -292,7 +302,6 @@ var SendToInstapaper = ( function() {
      *  @param  {Function}      Callback to trigger on removal
      */
     function notify( config ) {
-        console.log( "Notification: %o", config );
         config = {
             'el':       config.el       || null,
             'msg':      config.msg      ||  "",
