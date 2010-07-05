@@ -2,7 +2,7 @@
     "default_locale":   "en",
 
     "name":     "__MSG_extensionTitle__",
-    "version":  "1.0",
+    "version":  "1.1",
     
     "description":      "__MSG_extensionDescription__",
     "icons":        {
