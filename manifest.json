@@ -2,7 +2,7 @@
     "default_locale":   "en",
 
     "name":     "__MSG_extensionTitle__",
-    "version":  "1.1",
+    "version":  "1.2",
     
     "description":      "__MSG_extensionDescription__",
     "icons":        {
@@ -33,5 +33,6 @@
         "tabs",
         "notifications",
         "https://www.instapaper.com/"
-    ]
+    ],
+    "content_security_policy": "default-src 'none'; img-src 'data' 'self'; connect-src https://www.instapaper.com; script-src 'self'; style-src 'self'"
 }
